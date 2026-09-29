@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/check-docs.mjs)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh api repos/STEP-Network/:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "WebFetch(domain:tags.tiqcdn.com)",
+      "WebFetch(domain:docs.tealium.com)",
+      "WebFetch(domain:assertiveyield.com)"
+    ]
+  }
+}
