@@ -88,17 +88,24 @@ From [`docs/references/evidence.md`](docs/references/evidence.md) (180 cells, 4�
 
 ## Open
 
-Two questions, both answered by the same test on adops.stepdev.dk:
+**Answered 2026-10-26** — see [`docs/references/spa-mode-test.md`](docs/references/spa-mode-test.md).
+Measured live on allabolag.se:
 
-1. **Does an explicit `changePage()` double-fire** alongside Yield Manager's automatic Reset
-   detection on the same hop? Count `beforePageChange` events per navigation. If it double-fires,
-   automatic SPA detection gets disabled per domain after cut-over.
-2. **Is `{reset:true}` the right default** for our layouts? It rebuilds persistent chrome — anchor
-   and topscroll — on every hop. Compare against bare `changePage({})` on a domain whose shell
-   persists, and check whether stale units survive a navigation.
+- An explicit `changePage()` **does** double-fire against automatic Reset detection — the flows are
+  additive, AY does not dedup. Automatic detection has to be off per domain at cut-over.
+- The double-fire costs **no duplicate ad requests**, so it is cleanup rather than an emergency.
+- AY's default mode produced **zero ad requests** on a persistent-shell SPA, which is the measured
+  basis for a bare `changePage()` sending `{reset: true}`.
+- With detection neutralised, the model works exactly as designed: `pushState` inert,
+  `changePage()` = one flow and a full auction.
 
-Also unconfirmed: how YM's **SPA mode: Reset** workspace setting relates to the `{reset:true}`
-option. They sound like the same switch; the AY docs we hold don't say. Worth asking AY.
+Still open:
+
+1. **Set SPA mode to Manual.** The preview created for this still read `spa.mode: "RESET"` on both
+   allabolag.se and boligsiden.dk, so it did not save.
+2. **Page-level GPT targeting drops 17 → 12 keys on the first hop**, then holds. Not investigated.
+3. **Adblock asymmetry** — AY blocked while Tealium is not — is the case for installing the snippet
+   in the Tealium profile too, and it is untested.
 
 ## History
 
