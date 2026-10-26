@@ -99,13 +99,18 @@ Measured live on allabolag.se:
 - With detection neutralised, the model works exactly as designed: `pushState` inert,
   `changePage()` = one flow and a full auction.
 
+**SPA mode `manual` is confirmed working** on boligsiden.dk: `pushState` and a real client-side
+navigation both produce zero flows, and an explicit `changePage()` is the only trigger. It
+re-requests ads with no double-injection. `changePage({})` on the same real navigation requested
+nothing and left the previous page's ad live — so `{reset: true}` stays the default.
+
 Still open:
 
-1. **Set SPA mode to Manual.** The preview created for this still read `spa.mode: "RESET"` on both
-   allabolag.se and boligsiden.dk, so it did not save.
-2. **Page-level GPT targeting drops 17 → 12 keys on the first hop**, then holds. Not investigated.
-3. **Adblock asymmetry** — AY blocked while Tealium is not — is the case for installing the snippet
+1. **Adblock asymmetry** — AY blocked while Tealium is not — is the case for installing the snippet
    in the Tealium profile too, and it is untested.
+2. **Some domains inject ads without a changePage flow.** On boligsiden.dk the slot set changed
+   across a client-side navigation with zero flows. Check per domain before cut-over; a visible ad
+   does not prove the call landed.
 
 ## History
 
