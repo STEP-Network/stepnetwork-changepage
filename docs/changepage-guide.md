@@ -5,8 +5,6 @@ guess — you tell us, and that call is what we count as a pageview.
 
 The function is already on your page. There is nothing to install.
 
----
-
 ## 1. What counts as a pageview
 
 Call it **once per client-side route change**, **after** the new view is in the DOM.
@@ -20,16 +18,13 @@ Do **not** call it:
 Timing matters. We look for the new page's ad placements at the moment you call, so calling before
 the new view has rendered means we find nothing.
 
----
-
 ## 2. How to invoke it
 
 ```js
 window.stepnetwork?.changePage();
 ```
 
-Use the `?.` — it makes the call a no-op instead of an error on a page where our script has not
-loaded.
+Use `?.` so the call is a no-op, not an error, if our script has not loaded.
 
 ### The three forms
 
@@ -104,9 +99,6 @@ router.afterEach(window.stepnetwork.changePage);           // wrong
 router.afterEach(() => window.stepnetwork?.changePage());  // correct
 ```
 
-The first form hands the router's route object to the function as its options argument. It will not
-error — it will quietly do the wrong thing.
-
----
+The first form passes the router's route object as `options`, and fails silently.
 
 Questions: STEP Network AdTech.

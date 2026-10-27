@@ -1,119 +1,54 @@
 # stepnetwork-changepage
 
-One function the publisher calls when a virtual page navigation happens.
+One call the publisher makes on a virtual page navigation. It replaces the Tealium `pushState` shim
+and AY's own navigation sniffing — two uncoordinated guesses per navigation — with one signal.
 
 ```js
-window.stepnetwork.changePage();
+window.stepnetwork?.changePage();
 ```
 
-That is the whole thing. No page payload — AY and Tealium each already hold their own page data. The
-only thing being unified is *when* a navigation happened.
+No payload: AY and Tealium each already hold their own page data. Only the trigger is shared.
 
-## The mode argument
+## Install
 
-`changePage()` passes Assertive Yield's own `{refresh, reset}` object straight through.
+Publishers install nothing. Each team installs into its own tag.
 
-| Call | Sends | Use for |
+| File | Goes in | Owner |
 |---|---|---|
-| `changePage()` | `{reset:true}` | a real navigation — remove every unit, re-inject |
-| `changePage({})` | AY default | infinite scroll — keep units that are still valid |
-| `changePage({refresh:true})` | refresh survivors | rarely; it applies `ignoreRefreshLimits` |
+| [`src/changepage.js`](src/changepage.js) | both tags, identical copy | shared, frozen |
+| [`src/handler-ay.js`](src/handler-ay.js) | `yieldManagerPreScript.js` | STEP |
+| [`src/handler-tealium.js`](src/handler-tealium.js) | Tealium profile | AUD |
 
-**Why `{reset:true}` is the default.** AY's default mode only removes units whose conditions stopped
-holding or that left the DOM. On a SPA where the layout shell persists and only the content swaps,
-the ad containers survive — so the units survive unrefreshed, and the new article renders the
-previous article's ads against the new pageview. Silent, and exactly what this project exists to
-delete.
+Whichever tag loads first defines the snippet; each team then registers its own handler under its
+own key, so a tag that re-runs overwrites rather than duplicating. Neither side depends on the
+other, and an absent system registers nothing. The global exists only if a tag loaded, so publishers
+call it guarded (`?.`).
 
-`{refresh:true}` is deliberately not the default: it bypasses refresh controls, so a fast-navigating
-user would generate an unlimited auction per unit per hop.
+The shared snippet passes `options` through untouched — it carries no vendor's semantics, which is
+what lets it stay frozen while either handler changes.
 
-## For publishers
+## Modes
 
-[`docs/changepage-guide.md`](docs/changepage-guide.md) — integration guide, and the
-[PDF](docs/stepnetwork-changePage-guide.pdf) of the same. That is the document to forward to a
-publisher's developers; it covers install, the modes, when to call, and framework wiring.
+The AY handler reads AY's own `{refresh, reset}`:
 
-## The code
+| Call | AY gets | For |
+|---|---|---|
+| `changePage()` | `{reset:true}` | a real navigation |
+| `changePage({})` | AY default | infinite scroll |
+| `changePage({refresh:true})` | refresh survivors | rarely — bypasses refresh controls |
 
-[`src/changepage.js`](src/changepage.js). Installed **twice**, by us, in both tags:
+`{reset:true}` is the default because AY's default mode only removes units whose conditions stopped
+holding or that left the DOM. A SPA whose shell persists would keep the previous page's ads.
 
-| Where | Who |
-|---|---|
-| AY pre-script (`yieldManagerPreScript.js`) | STEP |
-| Tealium profile, early | AUD |
+## Rollout
 
-Publishers install nothing. The snippet is idempotent and first-writer-wins, so whichever tag loads
-first defines the function and the other finds it already there.
+Set **`spa.mode: "manual"`** per domain as it moves onto the bus, so `changePage()` is the only
+trigger. Automatic detection does not dedup against an explicit call.
 
-**Why both.** If it lived only in the AY pre-script, a blocked or late wrapper would mean no global,
-no event, and Tealium hears nothing — on adblocked pages, on non-monetised JFM domains, and on any
-navigation that beats the async wrapper load. Installing in both decouples the Tealium leg from AY
-entirely.
+- **Not a latency win.** The win is deleting the shim and its per-domain branches. Don't claim speed.
+- **A visible ad doesn't prove the call landed.** Some domains inject ads outside the changePage
+  flow. Verify with `beforePageChange` counts.
 
-The global is still absent if *neither* tag loaded, so publishers call it guarded —
-`window.stepnetwork?.changePage()`. The guide leads with that.
+## Publisher guide
 
-## What each side does
-
-| | |
-|---|---|
-| **AY** (STEP) | the snippet calls `ayManagerEnv.changePage()` through `ayManagerEnv.cmd` |
-| **Tealium** (AUD) | listens for `stepnetwork:changepage` on `window`, calls `utag.view()` |
-
-AY goes first because it is the ad path. Everything else is a listener and off that path.
-
-## Calling it
-
-Once per client-side route change, after the new view has rendered. Not on initial document load —
-each system's own bootstrap covers that.
-
-- Next.js app router — a `useEffect` on `usePathname()`
-- Vue Router / Nuxt — `router.afterEach()`
-- SvelteKit — `afterNavigate()`
-
-## Replaces
-
-The Tealium profile's `history.pushState` / `replaceState` shim with its per-domain branches, and the
-AY wrapper's separate sniffing of the same events. Two uncoordinated guesses per navigation, tuned
-per domain, become one call.
-
-## Two things measured, worth not re-litigating
-
-From [`docs/references/evidence.md`](docs/references/evidence.md) (180 cells, 4× CPU throttle):
-
-- **Calling `changePage()` per hop is not a latency win by itself.** No significant change. The win
-  is deleting the history shim and its per-domain branches. Don't claim speed in a meeting.
-- **AY Manual mode was the worst arm on every measure.** Stay in Reset.
-
-## Open
-
-**Answered 2026-10-26** — see [`docs/references/spa-mode-test.md`](docs/references/spa-mode-test.md).
-Measured live on allabolag.se:
-
-- An explicit `changePage()` **does** double-fire against automatic Reset detection — the flows are
-  additive, AY does not dedup. Automatic detection has to be off per domain at cut-over.
-- The double-fire costs **no duplicate ad requests**, so it is cleanup rather than an emergency.
-- AY's default mode produced **zero ad requests** on a persistent-shell SPA, which is the measured
-  basis for a bare `changePage()` sending `{reset: true}`.
-- With detection neutralised, the model works exactly as designed: `pushState` inert,
-  `changePage()` = one flow and a full auction.
-
-**SPA mode `manual` is confirmed working** on boligsiden.dk: `pushState` and a real client-side
-navigation both produce zero flows, and an explicit `changePage()` is the only trigger. It
-re-requests ads with no double-injection. `changePage({})` on the same real navigation requested
-nothing and left the previous page's ad live — so `{reset: true}` stays the default.
-
-Still open:
-
-1. **Adblock asymmetry** — AY blocked while Tealium is not — is the case for installing the snippet
-   in the Tealium profile too, and it is untested.
-2. **Some domains inject ads without a changePage flow.** On boligsiden.dk the slot set changed
-   across a client-side navigation with zero flows. Check per domain before cut-over; a visible ad
-   does not prove the call landed.
-
-## History
-
-This began as a much larger design — payload schema, subscriber bus, seven ADRs, eleven spec docs.
-All of it was cut on 2026-10-26: both systems already own their data, so the only thing worth
-unifying is the trigger. The original is in git at `3791a85` if the reasoning is ever needed.
+[`docs/changepage-guide.md`](docs/changepage-guide.md) · [PDF](docs/stepnetwork-changePage-guide.pdf) — forwarded to publisher developers.
