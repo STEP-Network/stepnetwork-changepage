@@ -11,25 +11,38 @@ No payload: AY and Tealium each already hold their own page data. Only the trigg
 
 ## Install
 
-Publishers install nothing. [`src/changepage.js`](src/changepage.js) is deployed in the AY
-pre-script (`yieldManagerPreScript.js`), entity-wide. **It is the deployed code verbatim — keep the
-two byte-identical.**
+Publishers install nothing. [`src/changepage.js`](src/changepage.js) is the deployed code verbatim
+— keep the file and the AY pre-script byte-identical.
 
-The function calls AY directly and dispatches `stepnetwork:changepage` on `window` for everyone
-else. AUD attaches to that event in the Tealium profile:
+**Both teams ship the same snippet, into their own tag.**
+
+| Tag | Who | What they add |
+|---|---|---|
+| AY pre-script (`yieldManagerPreScript.js`) | STEP | the snippet |
+| Tealium profile, early | AUD | the snippet **and** a listener |
 
 ```js
+// AUD, in the Tealium profile, after the snippet
 window.addEventListener('stepnetwork:changepage', function (e) {
   // AUD's business entirely — e.detail is the options object
 });
 ```
 
-It defines itself once (`if (!window.stepnetwork.changePage)`), so a tag re-run cannot duplicate it.
+The snippet is self-guarding (`if (!window.stepnetwork.changePage)`), so whichever tag loads first
+defines it and the other finds it already there. Adding it to a second tag is safe and needs no
+coordination. Because the AY leg inside it is itself guarded, a copy installed by Tealium still
+drives AY correctly once the wrapper is up.
 
-**Known limitation.** Because the function ships in the AY pre-script, it does not exist if the AY
-wrapper is blocked or has not loaded — and then Tealium gets nothing either. Publishers call it
-guarded (`?.`) so that is a no-op rather than an error in their router. Decoupling the two would
-mean shipping the snippet in the Tealium profile as well; not done, see Open.
+Shipping it in both tags is what makes the two systems independent: the function exists if *either*
+tag loaded, so an adblocked or late AY wrapper no longer costs AUD their pageviews.
+
+> **AUD must not define their own `changePage`.** There is one function, not one per system, and
+> first writer wins. If Tealium defines its own version and loads before the AY pre-script, our
+> guard sees the function already exists and the AY leg is never installed — ads stop refreshing on
+> every SPA hop, silently and with no error. On a consent-gated site, Tealium loading first is the
+> normal ordering. Ship the identical snippet and attach a listener.
+
+Publishers still call it guarded (`?.`), since both tags can be blocked.
 
 ## Modes
 
@@ -53,10 +66,9 @@ trigger. Automatic detection does not dedup against an explicit call.
 
 ## Open
 
-**AY and Tealium are not independent.** Tealium's leg depends on our dispatch, and on the AY wrapper
-loading at all. Shipping the same snippet in the Tealium profile would decouple them. Untested, and
-the case for it rests on adblock asymmetry — AY blocked while Tealium is not — which has not been
-measured.
+**Adblock asymmetry is unmeasured** — whether an adblocker that kills `ay.delivery` leaves
+`tiqcdn.com` alive. It is the sharpest argument for AUD shipping the snippet, but the load-order
+case above already justifies it on its own.
 
 ## Publisher guide
 
