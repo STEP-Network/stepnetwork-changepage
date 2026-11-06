@@ -57,8 +57,20 @@ holding or that left the DOM. A SPA whose shell persists would keep the previous
 
 ## Rollout
 
-Set **`spa.mode: "manual"`** per domain as it moves onto the bus, so `changePage()` is the only
-trigger. Automatic detection does not dedup against an explicit call.
+One domain at a time. `changePage()` has to be the only trigger, so SPA mode goes to **manual** —
+overridden per domain from the pre-script with an `ayManagerEnv` call (AY confirmed; exact name and
+signature still pending), not flipped workspace-wide. Automatic detection does not dedup against an
+explicit call.
+
+The pre-script can't gate on the `mappedDomain` namespace variable — per AY, *"Namespace variables
+are not supported in this field."* Inline the same hostname logic and keep an allowlist:
+
+```js
+var domain = window.location.hostname.replace('www.', '');
+if (['boligsiden.dk', 'allabolag.se'].indexOf(domain) !== -1) {
+  // override SPA mode -> manual
+}
+```
 
 - **Not a latency win.** The win is deleting the shim and its per-domain branches. Don't claim speed.
 - **A visible ad doesn't prove the call landed.** Some domains inject ads outside the changePage
